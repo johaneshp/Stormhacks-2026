@@ -1,6 +1,6 @@
 -- Enable required extensions
 create extension if not exists postgis;
-create extension if not exists pgvector;
+create extension if not exists vector;
 create extension if not exists "uuid-ossp";
 
 create table users (
