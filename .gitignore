@@ -1,0 +1,16 @@
+# Environment files (never commit real keys)
+.env
+.env.local
+backend/.env
+mobile/.env
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Editors / OS
+.DS_Store
+
+# Large design file is tracked via Git LFS or kept local — uncomment to stop tracking in git:
+# Stormhacks_2026.fig
