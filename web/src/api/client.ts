@@ -1,6 +1,6 @@
-import type { Checkpoint, PlannerResponse, TripSummary } from '../types';
+import type { Checkpoint, PlannerResponse, TripSummary } from '@/types';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, options);
@@ -18,12 +18,9 @@ export function createTrip(userId: string, title: string) {
   });
 }
 
-export function uploadPhotos(tripId: string, files: { uri: string; name: string; type: string }[]) {
+export function uploadPhotos(tripId: string, files: File[]) {
   const form = new FormData();
-  files.forEach((file) => {
-    // React Native's FormData accepts this shape even though it isn't a DOM Blob.
-    form.append('files', file as unknown as Blob, file.name);
-  });
+  files.forEach((file) => form.append('files', file, file.name));
   return request<Checkpoint[]>(`/trips/${tripId}/photos`, { method: 'POST', body: form });
 }
 
