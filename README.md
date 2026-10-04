@@ -56,11 +56,17 @@ npm run dev
 Open http://localhost:3000.
 
 ## Notes
-- The web app currently hardcodes a `demo-trip` / `demo-user` id in each page (see the
-  `DEMO_TRIP_ID` / `DEMO_USER_ID` constants) so each feature can be built and tested in isolation
-  before trip creation and auth are wired up end-to-end — see TASKS.md Phase 0.
+- The web app hardcodes a real user/trip UUID in each page (see the `DEMO_TRIP_ID` / `DEMO_USER_ID`
+  constants) so each feature can be built and tested in isolation before trip creation and auth
+  are wired up end-to-end — see TASKS.md Phase 0. These ids break if you ever clear the `users` or
+  `trips` tables; see [Resetting demo data](#resetting-demo-data) below.
 - Gemini calls in `backend/app/services/ai.py` require `GEMINI_API_KEY` to be set; without it the
-  photo-upload and planner endpoints will error.
+  photo-upload and planner endpoints will error. The free tier's requests-per-minute quota is
+  tight and shared across photo categorization + checkpoint summaries, so `ai.py` throttles and
+  retries with backoff — large photo batches will just take longer, not fail outright.
+- Checkpoint place names (e.g. "Cannon Beach") come from `backend/app/services/geocode.py`, which
+  reverse-geocodes coordinates via OpenStreetMap's free Nominatim API — no API key needed, but
+  landmark-level naming is sometimes inconsistent (falls back to the town name).
 - Upload **original** photo files (straight from a camera/phone export), not screenshots or
   re-saved/edited copies — those usually strip GPS EXIF data. The Route page warns client-side
   (via `exifr`) when a selected photo has no GPS data before it's even uploaded.

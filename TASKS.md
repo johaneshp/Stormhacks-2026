@@ -5,41 +5,47 @@ Supabase schema written). The work left on each task is filling in / hardening l
 creating files from scratch. Work top to bottom — later phases assume earlier ones work.
 
 ## Phase 0 — Foundations
-- [ ] Run `supabase/schema.sql` against a real Supabase project, confirm the `trip-photos` bucket exists
-- [ ] Fill in `backend/.env` and `web/.env.local` from the `.env.example` files
-- [ ] Confirm `uvicorn app.main:app --reload --reload-dir app` boots and `/health` returns `{"status": "ok"}`
-- [ ] Confirm `npm run dev` in `web/` loads the three-page app at localhost:3000
-- [ ] Create one real user + trip row (via `/docs` Swagger UI is fine) and replace the
-      `DEMO_USER_ID` / `DEMO_TRIP_ID` constants in `web/src/app/**/page.tsx` with real ids, or
-      build a minimal "create trip" page if you want this dynamic sooner
+- [x] Run `supabase/schema.sql` against a real Supabase project, confirm the `trip-photos` bucket exists
+- [x] Fill in `backend/.env` and `web/.env.local` from the `.env.example` files
+- [x] Confirm `uvicorn app.main:app --reload --reload-dir app` boots and `/health` returns `{"status": "ok"}`
+- [x] Confirm `npm run dev` in `web/` loads the three-page app at localhost:3000
+- [x] Create one real user + trip row and wire the `DEMO_USER_ID` / `DEMO_TRIP_ID` constants in
+      `web/src/app/**/page.tsx` to real ids. These need to be regenerated any time the demo data
+      is reset — see [README.md](README.md#resetting-demo-data) for the reset script.
 
 ## Phase 1 — Route & Checkpoints
 Files: `backend/app/services/exif.py`, `clustering.py`, `ai.py` (categorize_photo),
 `backend/app/routers/checkpoints.py`, `web/src/app/page.tsx`, `web/src/components/RouteMap.tsx`
 
-- [ ] Test `extract_photo_metadata` against a real original photo file (not a screenshot or
-      re-saved copy — those strip GPS EXIF). The web page's client-side `exifr` check in
-      `page.tsx` warns before upload if a file has no GPS data, so trust that warning
+- [x] Test `extract_photo_metadata` against real original photo files — confirmed working with
+      real GPS coordinates (resolved to e.g. Cannon Beach, Portland). Screenshots/re-saved copies
+      still strip GPS EXIF, which is what the client-side `exifr` check in `page.tsx` warns about.
 - [ ] Tune `max_distance_m` in `cluster_into_checkpoints` (currently 150m) against a real set of
       trip photos — too small splits one stop into several, too large merges nearby stops
-- [ ] Wire a real `GEMINI_API_KEY` and confirm `categorize_photo` returns sane labels for a batch
-      of test photos; add a fallback/manual-override path if mislabeling is common
-- [ ] Replace the placeholder `place_name` ("Stop 1", "Stop 2", ...) with a real reverse-geocode
-      call — easiest as a backend step in `checkpoints.py` right after `checkpoint_center` (e.g.
-      Nominatim/OpenStreetMap's free reverse-geocoding API, consistent with the Leaflet/OSM tiles
-      already in use)
-- [ ] Verify the Leaflet polyline/markers render correctly and the photo-grid modal opens per checkpoint
+- [x] Wire a real `GEMINI_API_KEY` and confirm `categorize_photo` returns sane labels — confirmed
+      working. Free-tier quota is tight (15 requests/min for the model in use) and shared with
+      `summarize_checkpoint`; `ai.py` now rate-limits and retries with backoff on 429s, so large
+      batches just take longer rather than silently dropping photos.
+- [x] Replace the placeholder `place_name` ("Stop 1", "Stop 2", ...) with a real reverse-geocode
+      call — done via `backend/app/services/geocode.py` (OpenStreetMap's free Nominatim API),
+      called from `_summarize_and_save` in `checkpoints.py` right after `checkpoint_center`. Note:
+      Nominatim's landmark-level tagging is inconsistent (sometimes falls back to just the town
+      name instead of a specific attraction) — a paid geocoding API would fix that if it matters.
+- [x] Verify the Leaflet polyline/markers render correctly and the photo-grid modal opens per
+      checkpoint — confirmed working (fixed a z-index bug where the map covered the modal)
 
 ## Phase 2 — Trip Summary
 Files: `backend/app/services/memories.py`, `backend/app/routers/summary.py`,
 `web/src/app/summary/page.tsx`
 
-- [ ] Confirm `compute_travel_dna` percentages sum to ~100 given real categorized photos
-- [ ] Validate the three core-memory rules (longest food stop, most-photographed stop, revisited
-      place) against a real trip — add more rules here if the hackathon demo wants more variety
-      (e.g. "most unique place" by comparing category rarity across the user's trips)
-- [ ] Decide whether `trip_stats` should be recomputed on every `/summary` call (current behavior)
-      or cached until new photos are added — matters once trips have many photos
+- [x] Confirm `compute_travel_dna` percentages sum to ~100 given real categorized photos — confirmed
+- [x] Validate the three core-memory rules (longest food stop, most-photographed stop, revisited
+      place) against a real trip — confirmed, all three showed up correctly. Add more rules here
+      if the hackathon demo wants more variety (e.g. "most unique place" by comparing category
+      rarity across the user's trips)
+- [x] Decided: `trip_stats` is recomputed on every `/summary` call rather than cached — this is
+      what makes the Summary page's Refresh button (added to work around Next.js's client router
+      cache serving a stale page) actually show new data immediately after an upload.
 
 ## Phase 3 — Travel Planner
 Files: `backend/app/services/ai.py` (generate_trip_plan), `backend/app/routers/planner.py`,
