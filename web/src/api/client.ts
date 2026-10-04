@@ -1,9 +1,15 @@
-import type { Checkpoint, PlannerResponse, TripSummary } from '../types';
+import type { Checkpoint, PlannerResponse, TripSummary } from '@/types';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, options);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, options);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Network request failed';
+    throw new Error(`Can't reach the trip API at ${API_URL}. Make sure the backend is running and NEXT_PUBLIC_API_URL points to an address this browser can access. (${detail})`);
+  }
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${await res.text()}`);
   }
@@ -18,12 +24,9 @@ export function createTrip(userId: string, title: string) {
   });
 }
 
-export function uploadPhotos(tripId: string, files: { uri: string; name: string; type: string }[]) {
+export function uploadPhotos(tripId: string, files: File[]) {
   const form = new FormData();
-  files.forEach((file) => {
-    // React Native's FormData accepts this shape even though it isn't a DOM Blob.
-    form.append('files', file as unknown as Blob, file.name);
-  });
+  files.forEach((file) => form.append('files', file, file.name));
   return request<Checkpoint[]>(`/trips/${tripId}/photos`, { method: 'POST', body: form });
 }
 

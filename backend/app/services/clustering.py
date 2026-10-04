@@ -7,14 +7,13 @@ EARTH_RADIUS_M = 6_371_000
 def cluster_into_checkpoints(photos: list[dict], max_distance_m: float = 150.0) -> list[list[dict]]:
     """Groups photos into checkpoints by GPS proximity using DBSCAN with haversine distance.
 
-    `photos` must be pre-sorted by taken_at and each have lat/lon. Photos without
-    coordinates are returned as their own single-photo group, in original order.
+    `photos` must be pre-sorted by taken_at. A checkpoint requires coordinates
+    (the DB column is NOT NULL), so photos without lat/lon can't form or join
+    one and are dropped here rather than crashing downstream.
     """
     located = [p for p in photos if p.get("lat") is not None and p.get("lon") is not None]
-    unlocated = [p for p in photos if p.get("lat") is None or p.get("lon") is None]
-
     if not located:
-        return [[p] for p in unlocated]
+        return []
 
     coords_rad = np.radians([[p["lat"], p["lon"]] for p in located])
     eps = max_distance_m / EARTH_RADIUS_M
@@ -25,9 +24,7 @@ def cluster_into_checkpoints(photos: list[dict], max_distance_m: float = 150.0) 
     for label, photo in zip(labels, located):
         groups.setdefault(int(label), []).append(photo)
 
-    ordered_groups = sorted(groups.values(), key=lambda g: min(p["taken_at"] for p in g if p.get("taken_at")))
-    ordered_groups.extend([p] for p in unlocated)
-    return ordered_groups
+    return sorted(groups.values(), key=lambda g: min(p["taken_at"] for p in g if p.get("taken_at")))
 
 
 def checkpoint_center(photos: list[dict]) -> tuple[float, float]:
