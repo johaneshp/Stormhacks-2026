@@ -15,11 +15,31 @@ export default function SummaryPage() {
   const [summary, setSummary] = useState<TripSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+
+  function fetchSummary() {
     getTripSummary(DEMO_TRIP_ID)
       .then(setSummary)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Could not load your trip summary.'))
       .finally(() => setLoading(false));
+  }
+
+  function handleRefresh() {
+    setLoading(true);
+    setError(null);
+    fetchSummary();
+  }
+
+  // Fetch on mount, but Next's client router cache can reuse an already-mounted
+  // instance of this page when navigating back to it (so this effect won't
+  // re-run after you upload new photos elsewhere). Re-fetch whenever the tab
+  // regains focus too, so newly uploaded data actually shows up.
+  useEffect(() => {
+    fetchSummary();
+    window.addEventListener('focus', handleRefresh);
+    return () => window.removeEventListener('focus', handleRefresh);
+    // fetchSummary/handleRefresh only close over setState functions, which
+    // React guarantees are stable, so they're safe to omit here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) return <p className="page-shell muted">Gathering your travel memories…</p>;
@@ -27,10 +47,15 @@ export default function SummaryPage() {
 
   return (
     <div className="page-shell wide stack">
-      <header>
-        <p className="eyebrow">The places and things you love</p>
-        <h1 className="page-heading">Your travel DNA.</h1>
-        <p className="page-intro">A small portrait of the way you like to see the world.</p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow">The places and things you love</p>
+          <h1 className="page-heading">Your travel DNA.</h1>
+          <p className="page-intro">A small portrait of the way you like to see the world.</p>
+        </div>
+        <button className="quiet-button" onClick={handleRefresh} disabled={loading}>
+          Refresh
+        </button>
       </header>
       <section className="panel">
         <h2 className="panel-title">What draws you in</h2>

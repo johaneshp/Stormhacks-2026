@@ -22,11 +22,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <nav className="site-nav">
-          <Link href="/" className="brand">Trace</Link>
+          <Link href="/" className="brand" prefetch={false}>Trace</Link>
           <div className="nav-links">
-            <Link href="/">Your route</Link>
-            <Link href="/summary">Memories</Link>
-            <Link href="/planner">Plan a trip</Link>
+            <Link href="/" prefetch={false}>Your route</Link>
+            <Link href="/summary" prefetch={false}>Memories</Link>
+            <Link href="/planner" prefetch={false}>Plan a trip</Link>
           </div>
         </nav>
         <main className="flex-1">{children}</main>
