@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { getTripSummary } from '@/api/client';
 import type { TripSummary } from '@/types';
 
-const DEMO_TRIP_ID = 'demo-trip';
+const DEMO_TRIP_ID = '761a013b-b3e7-4996-9891-30960bcbd2f0';
 
 const DNA_LABELS: { key: keyof TripSummary['travel_dna']; label: string }[] = [
   { key: 'food', label: 'Food' },
