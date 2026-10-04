@@ -8,6 +8,7 @@ from app.models.schemas import Checkpoint
 from app.services.ai import categorize_photo, summarize_checkpoint
 from app.services.clustering import checkpoint_center, cluster_into_checkpoints
 from app.services.exif import extract_photo_metadata
+from app.services.geocode import reverse_geocode
 from app.supabase_client import get_supabase
 
 router = APIRouter(prefix="/trips/{trip_id}", tags=["checkpoints"])
@@ -46,6 +47,9 @@ async def _process_photo(trip_id: str, file: UploadFile) -> dict | None:
                 "lat": meta["lat"],
                 "lon": meta["lon"],
                 "category": category,
+                # kept only to pick a representative photo for the checkpoint
+                # summary below; stripped before anything reaches the database.
+                "_raw": raw,
             }
         except Exception as e:  # noqa: BLE001 - deliberately broad, see comment above
             last_error = e
@@ -63,14 +67,23 @@ def _summarize_and_save(trip_id: str, order_index: int, group: list[dict]) -> di
     duration_minutes = (
         (left_at - arrived_at).total_seconds() / 60 if arrived_at and left_at else 0
     )
-    summary = summarize_checkpoint(f"stop #{order_index + 1}", len(group), duration_minutes)
+
+    place_name = reverse_geocode(lat, lon) or f"Stop {order_index + 1}"
+    # Prefer a scenic/food/street shot over a selfie or group photo as the
+    # representative image, since those tend to show the actual surroundings.
+    representative = next(
+        (p for p in group if p.get("category") not in ("selfie", "group_photo")), group[0]
+    )
+    summary = summarize_checkpoint(
+        place_name, len(group), duration_minutes, representative.get("_raw")
+    )
 
     checkpoint_row = (
         sb.table("checkpoints")
         .insert(
             {
                 "trip_id": trip_id,
-                "place_name": f"Stop {order_index + 1}",
+                "place_name": place_name,
                 "lat": lat,
                 "lon": lon,
                 "arrived_at": arrived_at.isoformat() if arrived_at else None,
@@ -82,11 +95,12 @@ def _summarize_and_save(trip_id: str, order_index: int, group: list[dict]) -> di
         .execute()
     ).data[0]
 
-    for photo in group:
+    photo_rows = [{k: v for k, v in photo.items() if k != "_raw"} for photo in group]
+    for photo in photo_rows:
         photo["checkpoint_id"] = checkpoint_row["id"]
         if photo["taken_at"]:
             photo["taken_at"] = photo["taken_at"].isoformat()
-    inserted_photos = sb.table("photos").insert(group).execute().data
+    inserted_photos = sb.table("photos").insert(photo_rows).execute().data
 
     checkpoint_row["photos"] = inserted_photos
     return checkpoint_row

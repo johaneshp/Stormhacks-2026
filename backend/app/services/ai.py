@@ -1,3 +1,4 @@
+import collections
 import json
 import threading
 import time
@@ -11,11 +12,37 @@ PHOTO_CATEGORIES = ["food", "sightseeing", "group_photo", "selfie", "street_view
 
 _configured = False
 
-# The free tier caps Gemini at a low requests-per-minute limit, and this app
-# fires one call per photo plus one per checkpoint, all concurrently. Cap how
-# many of those are in flight at once, and back off (using the server's own
-# suggested delay) instead of failing the whole upload on a 429.
-_GEMINI_CONCURRENCY = threading.Semaphore(5)
+
+class _RateLimiter:
+    """Caps calls to at most `max_calls` per rolling `window_seconds`, blocking
+    the caller until there's room instead of firing bursts and hoping for the
+    best. A concurrency cap alone doesn't bound throughput — fast calls can
+    still cycle through far more than the per-minute quota even with only a
+    few in flight at once.
+    """
+
+    def __init__(self, max_calls: int, window_seconds: float):
+        self._max_calls = max_calls
+        self._window = window_seconds
+        self._calls: collections.deque[float] = collections.deque()
+        self._lock = threading.Lock()
+
+    def acquire(self) -> None:
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                while self._calls and now - self._calls[0] >= self._window:
+                    self._calls.popleft()
+                if len(self._calls) < self._max_calls:
+                    self._calls.append(now)
+                    return
+                wait = self._window - (now - self._calls[0])
+            time.sleep(max(wait, 0.05))
+
+
+# The free tier caps this model at 15 requests/minute; stay under that with
+# some margin since timing isn't perfectly exact across threads.
+_gemini_rate_limiter = _RateLimiter(max_calls=12, window_seconds=60)
 
 
 def _ensure_configured():
@@ -25,11 +52,11 @@ def _ensure_configured():
         _configured = True
 
 
-def _generate_with_retry(model: genai.GenerativeModel, *args, max_attempts: int = 4, **kwargs):
+def _generate_with_retry(model: genai.GenerativeModel, *args, max_attempts: int = 6, **kwargs):
     for attempt in range(max_attempts):
+        _gemini_rate_limiter.acquire()
         try:
-            with _GEMINI_CONCURRENCY:
-                return model.generate_content(*args, **kwargs)
+            return model.generate_content(*args, **kwargs)
         except ResourceExhausted as e:
             if attempt == max_attempts - 1:
                 raise
@@ -52,14 +79,33 @@ def categorize_photo(image_bytes: bytes) -> str:
     return label if label in PHOTO_CATEGORIES else "sightseeing"
 
 
-def summarize_checkpoint(place_name: str, photo_count: int, duration_minutes: float) -> str:
+def summarize_checkpoint(
+    place_name: str,
+    photo_count: int,
+    duration_minutes: float,
+    image_bytes: bytes | None = None,
+) -> str:
     _ensure_configured()
     model = genai.GenerativeModel("gemini-flash-lite-latest")
     prompt = (
-        f"Write a one-sentence, upbeat trip-journal note about a stop at {place_name}, "
-        f"where the traveler took {photo_count} photos over {duration_minutes:.0f} minutes."
+        f"Write 2-3 sentences for a trip journal about a stop at {place_name}. "
+        f"The traveler spent about {duration_minutes:.0f} minutes here and took {photo_count} photo(s). "
+        "Start by plainly naming the place (e.g. \"Stopped at <place>\"), then describe specific, "
+        "concrete details you can actually see in the photo below — scenery, weather, lighting, "
+        "notable features like a sunset, landscape, food, or activity. "
+        "Do not use vague hype phrases like 'absolute breeze', 'totally amazing', or 'hidden gem' — "
+        "be specific and grounded in what's actually visible, not generic enthusiasm."
+        if image_bytes
+        else (
+            f"Write 1-2 sentences for a trip journal about a stop at {place_name}. "
+            f"The traveler spent about {duration_minutes:.0f} minutes here and took {photo_count} photo(s). "
+            "Plainly name the place and mention the time/photo count naturally. No image is available, "
+            "so don't invent visual details — avoid vague hype phrases like 'absolute breeze' or "
+            "'hidden gem' and keep it factual."
+        )
     )
-    response = _generate_with_retry(model, prompt)
+    content = [prompt, {"mime_type": "image/jpeg", "data": image_bytes}] if image_bytes else prompt
+    response = _generate_with_retry(model, content)
     return response.text.strip()
 
 
