@@ -15,9 +15,11 @@ export default function PlannerPage() {
   const [departureTime, setDepartureTime] = useState('');
   const [plan, setPlan] = useState<PlannerResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate() {
     setLoading(true);
+    setError(null);
     try {
       const result = await generatePlan({
         userId: DEMO_USER_ID,
@@ -28,6 +30,8 @@ export default function PlannerPage() {
         departureTime: departureTime || undefined,
       });
       setPlan(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate the plan. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -36,52 +40,55 @@ export default function PlannerPage() {
   const canGenerate = destination && startDate && endDate && !loading;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-6">
-      <h1 className="text-2xl font-bold">Travel Planner</h1>
+    <div className="page-shell">
+      <p className="eyebrow">A slower kind of planning</p>
+      <h1 className="page-heading">Somewhere<br />wonderful awaits.</h1>
+      <p className="page-intro">Tell us when and where. We’ll sketch out a thoughtful first itinerary for you.</p>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium">Destination</label>
+      <div className="panel stack">
+        <div>
+        <label className="field-label">Destination</label>
         <input
-          className="w-full rounded border px-3 py-2"
+          className="field-input"
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
           placeholder="Tokyo, Japan"
         />
-      </div>
+        </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid-two">
         <div>
-          <label className="mb-1 block text-sm font-medium">Start date</label>
+          <label className="field-label">Start date</label>
           <input
             type="date"
-            className="w-full rounded border px-3 py-2"
+            className="field-input"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">End date</label>
+          <label className="field-label">End date</label>
           <input
             type="date"
-            className="w-full rounded border px-3 py-2"
+            className="field-input"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Arrival time (optional)</label>
+          <label className="field-label">Arrival time · optional</label>
           <input
             type="time"
-            className="w-full rounded border px-3 py-2"
+            className="field-input"
             value={arrivalTime}
             onChange={(e) => setArrivalTime(e.target.value)}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Departure time (optional)</label>
+          <label className="field-label">Departure time · optional</label>
           <input
             type="time"
-            className="w-full rounded border px-3 py-2"
+            className="field-input"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
           />
@@ -89,23 +96,26 @@ export default function PlannerPage() {
       </div>
 
       <button
-        className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        className="primary-button"
         disabled={!canGenerate}
         onClick={handleGenerate}
       >
         {loading ? 'Generating…' : 'Generate plan'}
       </button>
+      {error && <p className="notice" role="alert">{error}</p>}
+
+      </div>
 
       {plan?.days.map((day) => (
-        <div key={day.date} className="rounded-xl bg-gray-50 p-4">
-          <p className="mb-2 font-bold">{day.date}</p>
-          <div className="space-y-2">
+        <div key={day.date} className="plan-day mt-6">
+          <h2>{day.date}</h2>
+          <div>
             {day.stops.map((stop, i) => (
-              <div key={i} className="flex gap-3">
-                <span className="w-16 shrink-0 font-semibold">{stop.time}</span>
+              <div key={i} className="plan-stop">
+                <span className="plan-time">{stop.time}</span>
                 <div>
-                  <p className="font-semibold">{stop.place_name}</p>
-                  <p className="text-sm text-gray-600">{stop.reason}</p>
+                  <p>{stop.place_name}</p>
+                  <p className="muted">{stop.reason}</p>
                 </div>
               </div>
             ))}

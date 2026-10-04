@@ -21,6 +21,9 @@ See [TASKS.md](TASKS.md) for an incremental, feature-by-feature build order.
 3. Copy your project URL, publishable key, and secret key (Project Settings → API).
 
 ### 2. Backend
+
+#### macOS / Linux
+
 ```bash
 cd backend
 python3 -m venv .venv
@@ -28,6 +31,20 @@ python3 -m venv .venv
 cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_SERVICE_KEY (the secret key), GEMINI_API_KEY
 .venv/bin/uvicorn app.main:app --reload --reload-dir app
 ```
+
+#### Windows PowerShell
+
+```powershell
+cd backend
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env   # fill in SUPABASE_URL, SUPABASE_SERVICE_KEY (the secret key), GEMINI_API_KEY
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --reload-dir app
+```
+
+Run the last command from the `backend` directory. Use `python.exe -m uvicorn`; do not append
+`/uvicorn` to the Python executable path.
+
 API docs: http://localhost:8000/docs
 
 ### 3. Web app

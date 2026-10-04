@@ -3,7 +3,13 @@ import type { Checkpoint, PlannerResponse, TripSummary } from '@/types';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, options);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, options);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Network request failed';
+    throw new Error(`Can't reach the trip API at ${API_URL}. Make sure the backend is running and NEXT_PUBLIC_API_URL points to an address this browser can access. (${detail})`);
+  }
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${await res.text()}`);
   }
