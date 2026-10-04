@@ -19,7 +19,7 @@ def _ensure_configured():
 def categorize_photo(image_bytes: bytes) -> str:
     """Asks Gemini to label a single photo thumbnail into one of PHOTO_CATEGORIES."""
     _ensure_configured()
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-flash-latest")
     prompt = (
         "Classify this travel photo into exactly one category: "
         f"{', '.join(PHOTO_CATEGORIES)}. Reply with only the category name."
@@ -33,7 +33,7 @@ def categorize_photo(image_bytes: bytes) -> str:
 
 def summarize_checkpoint(place_name: str, photo_count: int, duration_minutes: float) -> str:
     _ensure_configured()
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-flash-latest")
     prompt = (
         f"Write a one-sentence, upbeat trip-journal note about a stop at {place_name}, "
         f"where the traveler took {photo_count} photos over {duration_minutes:.0f} minutes."
@@ -53,7 +53,7 @@ def generate_trip_plan(
 ) -> dict:
     _ensure_configured()
     model = genai.GenerativeModel(
-        "gemini-1.5-flash",
+        "gemini-flash-latest",
         generation_config={"response_mime_type": "application/json"},
     )
     prompt = f"""
