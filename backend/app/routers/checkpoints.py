@@ -1,4 +1,6 @@
 import asyncio
+import uuid
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
@@ -21,22 +23,35 @@ def _upload_and_categorize(path: str, raw: bytes) -> tuple[str, str]:
     return file_url, category
 
 
-async def _process_photo(trip_id: str, file: UploadFile) -> dict:
+async def _process_photo(trip_id: str, file: UploadFile) -> dict | None:
     raw = await file.read()
     meta = extract_photo_metadata(raw)
-    path = f"{trip_id}/{file.filename}"
+    # Real filenames can contain spaces, parentheses, colons, etc., which breaks
+    # as a raw storage object key. Use a random name and keep only the extension.
+    suffix = PurePosixPath(file.filename or "").suffix
+    path = f"{trip_id}/{uuid.uuid4().hex}{suffix}"
+
     # Supabase storage upload + the Gemini categorization call are both blocking
     # network calls; offload to a thread so photos process concurrently instead
-    # of one full round-trip at a time.
-    file_url, category = await asyncio.to_thread(_upload_and_categorize, path, raw)
-    return {
-        "trip_id": trip_id,
-        "file_url": file_url,
-        "taken_at": meta["taken_at"],
-        "lat": meta["lat"],
-        "lon": meta["lon"],
-        "category": category,
-    }
+    # of one full round-trip at a time. One flaky upload shouldn't take down the
+    # whole batch, so retry once and otherwise skip this photo.
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            file_url, category = await asyncio.to_thread(_upload_and_categorize, path, raw)
+            return {
+                "trip_id": trip_id,
+                "file_url": file_url,
+                "taken_at": meta["taken_at"],
+                "lat": meta["lat"],
+                "lon": meta["lon"],
+                "category": category,
+            }
+        except Exception as e:  # noqa: BLE001 - deliberately broad, see comment above
+            last_error = e
+
+    print(f"Skipping photo {file.filename!r} after repeated failures: {last_error}")
+    return None
 
 
 def _summarize_and_save(trip_id: str, order_index: int, group: list[dict]) -> dict:
@@ -71,9 +86,9 @@ def _summarize_and_save(trip_id: str, order_index: int, group: list[dict]) -> di
         photo["checkpoint_id"] = checkpoint_row["id"]
         if photo["taken_at"]:
             photo["taken_at"] = photo["taken_at"].isoformat()
-    sb.table("photos").insert(group).execute()
+    inserted_photos = sb.table("photos").insert(group).execute().data
 
-    checkpoint_row["photos"] = group
+    checkpoint_row["photos"] = inserted_photos
     return checkpoint_row
 
 
@@ -82,7 +97,10 @@ async def upload_photos(trip_id: str, files: list[UploadFile]):
     """Uploads photos for a trip, extracts EXIF time/GPS, clusters into checkpoints,
     categorizes each photo with Gemini, and writes checkpoints + photos to Supabase.
     """
-    photos = list(await asyncio.gather(*(_process_photo(trip_id, file) for file in files)))
+    results = await asyncio.gather(*(_process_photo(trip_id, file) for file in files))
+    photos = [p for p in results if p is not None]
+    if not photos:
+        raise HTTPException(500, "All photo uploads failed")
     photos.sort(key=lambda p: p["taken_at"] or "")
     groups = cluster_into_checkpoints(photos)
 

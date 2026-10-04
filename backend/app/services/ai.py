@@ -1,6 +1,9 @@
 import json
+import threading
+import time
 
 import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted
 
 from app.config import settings
 
@@ -8,12 +11,30 @@ PHOTO_CATEGORIES = ["food", "sightseeing", "group_photo", "selfie", "street_view
 
 _configured = False
 
+# The free tier caps Gemini at a low requests-per-minute limit, and this app
+# fires one call per photo plus one per checkpoint, all concurrently. Cap how
+# many of those are in flight at once, and back off (using the server's own
+# suggested delay) instead of failing the whole upload on a 429.
+_GEMINI_CONCURRENCY = threading.Semaphore(5)
+
 
 def _ensure_configured():
     global _configured
     if not _configured:
         genai.configure(api_key=settings.gemini_api_key)
         _configured = True
+
+
+def _generate_with_retry(model: genai.GenerativeModel, *args, max_attempts: int = 4, **kwargs):
+    for attempt in range(max_attempts):
+        try:
+            with _GEMINI_CONCURRENCY:
+                return model.generate_content(*args, **kwargs)
+        except ResourceExhausted as e:
+            if attempt == max_attempts - 1:
+                raise
+            delay = getattr(getattr(e, "retry_delay", None), "seconds", None) or 15
+            time.sleep(delay + 1)
 
 
 def categorize_photo(image_bytes: bytes) -> str:
@@ -24,8 +45,8 @@ def categorize_photo(image_bytes: bytes) -> str:
         "Classify this travel photo into exactly one category: "
         f"{', '.join(PHOTO_CATEGORIES)}. Reply with only the category name."
     )
-    response = model.generate_content(
-        [prompt, {"mime_type": "image/jpeg", "data": image_bytes}]
+    response = _generate_with_retry(
+        model, [prompt, {"mime_type": "image/jpeg", "data": image_bytes}]
     )
     label = response.text.strip().lower().replace(" ", "_")
     return label if label in PHOTO_CATEGORIES else "sightseeing"
@@ -38,7 +59,7 @@ def summarize_checkpoint(place_name: str, photo_count: int, duration_minutes: fl
         f"Write a one-sentence, upbeat trip-journal note about a stop at {place_name}, "
         f"where the traveler took {photo_count} photos over {duration_minutes:.0f} minutes."
     )
-    response = model.generate_content(prompt)
+    response = _generate_with_retry(model, prompt)
     return response.text.strip()
 
 
@@ -69,5 +90,5 @@ Traveler's favorite place types: {", ".join(favorite_place_types) or "none recor
 Return JSON of the shape:
 {{"destination": "...", "days": [{{"date": "YYYY-MM-DD", "stops": [{{"time": "HH:MM", "place_name": "...", "reason": "..."}}]}}]}}
 """
-    response = model.generate_content(prompt)
+    response = _generate_with_retry(model, prompt)
     return json.loads(response.text)

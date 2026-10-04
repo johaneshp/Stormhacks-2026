@@ -10,7 +10,7 @@ import type { Checkpoint } from '@/types';
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
 
 // TODO: replace with a real trip id once trip creation is wired into the flow.
-const DEMO_TRIP_ID = '761a013b-b3e7-4996-9891-30960bcbd2f0';
+const DEMO_TRIP_ID = '407bd7db-57b5-4195-a732-3421b5d44958';
 
 export default function RoutePage() {
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
