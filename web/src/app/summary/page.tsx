@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getTripSummary } from '@/api/client';
 import type { TripSummary } from '@/types';
 
-const DEMO_TRIP_ID = '407bd7db-57b5-4195-a732-3421b5d44958';
+const DEMO_TRIP_ID = '53f04cd9-70db-4b0e-83c6-2e4a82300346';
 const DNA_LABELS: { key: keyof TripSummary['travel_dna']; label: string }[] = [
   { key: 'food', label: 'Food' }, { key: 'sightseeing', label: 'Sightseeing' },
   { key: 'group_photo', label: 'Group photos' }, { key: 'selfie', label: 'Selfies' },

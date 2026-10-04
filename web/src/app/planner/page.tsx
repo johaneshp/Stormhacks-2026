@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { generatePlan } from '@/api/client';
 import type { PlannerResponse } from '@/types';
 
-const DEMO_USER_ID = 'a932129b-cb86-408d-bcea-221327bfc5b5';
+const DEMO_USER_ID = 'edad5ef7-3460-4591-b913-5d7091a312a9';
 
 export default function PlannerPage() {
   const [destination, setDestination] = useState('');

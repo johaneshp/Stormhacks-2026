@@ -7,7 +7,7 @@ import { uploadPhotos } from '@/api/client';
 import type { Checkpoint } from '@/types';
 
 const RouteMap = dynamic(() => import('@/components/RouteMap'), { ssr: false });
-const DEMO_TRIP_ID = '407bd7db-57b5-4195-a732-3421b5d44958';
+const DEMO_TRIP_ID = '53f04cd9-70db-4b0e-83c6-2e4a82300346';
 
 export default function RoutePage() {
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
